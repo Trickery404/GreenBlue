@@ -1,53 +1,44 @@
+---
 stages:
   - build
   - deploy
   - test
   - switch
-
 variables:
   DOCKER_IMAGE: yourdockerhubuser/ping-app:${CI_COMMIT_SHORT_SHA}
   EC2_HOST: ec2-x-x-x-x.compute.amazonaws.com
   EC2_USER: ubuntu
-
 build:
   stage: build
   script:
     - docker build -t $DOCKER_IMAGE .
-    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME"
+      --password-stdin
     - docker push $DOCKER_IMAGE
   only:
     - master
-
 deploy:
   stage: deploy
   script:
-    - ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
-        docker pull $DOCKER_IMAGE &&
-        docker compose down &&
-        docker compose up -d --build
-      "
+    - ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST " docker pull
+      $DOCKER_IMAGE && docker compose down && docker compose up -d --build "
   only:
     - master
-
 test:
   stage: test
   script:
-    - ssh $EC2_USER@$EC2_HOST "curl -f http://localhost/ping && curl -X GET http://localhost/pong"
+    - ssh $EC2_USER@$EC2_HOST "curl -f http://localhost/ping && curl -X GET
+      http://localhost/pong"
   only:
     - master
-
 switch:
   stage: switch
   script:
-    - ssh $EC2_USER@$EC2_HOST "
-        # Switch Nginx upstream by replacing config and reloading
-        sed -i 's/ping-blue/ping-green/' ./nginx.conf
-        docker compose exec nginx nginx -s reload
-      "
+    - ssh $EC2_USER@$EC2_HOST " sed -i 's/ping-blue/ping-green/' ./nginx.conf
+      docker compose exec nginx nginx -s reload "
   only:
     - master
   when: on_success
-
 notify:
   stage: switch
   script:

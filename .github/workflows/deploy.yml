@@ -8,7 +8,7 @@ on:
 env:
   # Define the Docker image name using your Docker Hub username
   # The GitHub SHA is used for a unique image tag
-  DOCKER_IMAGE: yourdockerhubuser/ping-app:${{ GITHUB.SHA }}
+  DOCKER_IMAGE: bigdoy/ping-app:${{ GITHUB.SHA }}
 
 jobs:
   build:

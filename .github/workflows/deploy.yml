@@ -41,6 +41,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             export DOCKER_IMAGE=${{ env.DOCKER_IMAGE }}
+            cd cd /home/ubuntu/example
             docker pull $DOCKER_IMAGE
             
             # This is where you would place your blue-green deployment logic

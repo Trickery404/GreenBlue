@@ -1,0 +1,95 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  # Define the Docker image name using your Docker Hub username
+  # The GitHub SHA is used for a unique image tag
+  DOCKER_IMAGE: yourdockerhubuser/ping-app:${{ GITHUB.SHA }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t ${{ env.DOCKER_IMAGE }} .
+          docker push ${{ env.DOCKER_IMAGE }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    # The 'deploy' job will only start after the 'build' job has succeeded
+    needs: build
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            export DOCKER_IMAGE=${{ env.DOCKER_IMAGE }}
+            docker pull $DOCKER_IMAGE
+            
+            # This is where you would place your blue-green deployment logic
+            # For example, start the new "green" container
+            # The script from the previous answer would go here
+            echo "Deployment script to start the 'green' environment would run here."
+            # For now, we'll assume a docker-compose setup
+            docker-compose up -d --no-deps --build green_service_name
+
+  test:
+    runs-on: ubuntu-latest
+    # The 'test' job depends on the 'deploy' job
+    needs: deploy
+    steps:
+      - name: Test endpoints on new deployment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          # Test the 'green' port directly before switching traffic
+          script: |
+            curl --fail http://localhost:5002/ping
+            curl --fail -X GET http://localhost:5002/pong
+
+  switch:
+    runs-on: ubuntu-latest
+    # The 'switch' job will only run after 'test' succeeds
+    needs: test
+    steps:
+      - name: Switch NGINX to new container
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Logic to switch traffic to the new "green" container
+            sed -i 's/5001/5002/' ./nginx.conf
+            docker compose exec nginx nginx -s reload
+            
+            # Stop the old "blue" container
+            docker-compose stop blue_service_name
+
+  notify_failure:
+    runs-on: ubuntu-latest
+    # This job only runs if any of the previous jobs in the chain fail
+    if: failure()
+    needs: [build, deploy, test, switch]
+    steps:
+      - name: Notify team on failure
+        run: echo " Deployment failed! Please check the pipeline logs."

@@ -49,7 +49,7 @@ jobs:
             # The script from the previous answer would go here
             echo "Deployment script to start the 'green' environment would run here."
             # For now, we'll assume a docker-compose setup
-            docker-compose up -d --no-deps --build green_service_name
+            docker-compose up -d --no-deps --build ping-green
 
   test:
     runs-on: ubuntu-latest
